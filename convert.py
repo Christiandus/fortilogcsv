@@ -122,6 +122,26 @@ def convert_file(infile: str, outfile: str) -> None:
 
     write_to_file(headers, events, outfile)
 
+def convert_directory(dir_path: str, outfile: str) -> None:
+    """Merge all .log files in the dir_path and convert them to a single CSV.add()
+
+    Args:
+        dir_path (str): Input directory containing .log files
+        out_path (str): Output file
+    """
+    print_info("Merging log files from directory %s", dir_path)
+
+    all_lines: List[str] = []
+    path = Path(dir_path)
+    for file in path.glob("*.log"):
+        if file.is_file() and file.name.endswith(".log"):
+            print_info("Reading logs from %s", file)
+            with open(file, "r", encoding="UTF-8", buffering=1 << 20) as f:
+                all_lines.extend(f.readlines())
+
+    events, headers = process_log_lines(all_lines)
+
+    write_to_file(headers, events, outfile)
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -135,12 +155,22 @@ def main() -> None:
     parser.add_argument(
         "--outfile", type=str, help="Location to save converted CSV file", required=True
     )
+    parser.add_argument(
+        "-d", "--directory",
+        action="store_true",
+        help="Indicates that the input is a directory containing multiple .log files to merge and convert",
+    )
     args = parser.parse_args()
 
     # Check for existance of input and output files
+    isInputDirectory = args.directory
     inputFile = Path(args.infile)
-    if not inputFile.is_file():
+    if not isInputDirectory and not inputFile.is_file():
         print_warn("Source file not found")
+        sys.exit("Cannot continue without valid input data, program exiting")
+        
+    if isInputDirectory and not inputFile.is_dir():
+        print_warn("Source directory not found")
         sys.exit("Cannot continue without valid input data, program exiting")
 
     outputFile = Path(args.outfile)
@@ -156,7 +186,10 @@ def main() -> None:
     if outputFile.is_file():
         print_warn("Destination file already exists - script will overwrite this")
 
-    convert_file(args.infile, args.outfile)
+    if isInputDirectory:
+        convert_directory(args.infile, args.outfile)
+    else:
+        convert_file(args.infile, args.outfile)
 
 
 if __name__ == "__main__":
